@@ -27,6 +27,12 @@
     select, input[type="text"], input[type="password"] { width: 100%; padding: 13px 14px; border: 1.5px solid #d0d4da; border-radius: 10px; font-size: 16px; color: #333; outline: none; transition: border 0.2s, box-shadow 0.2s; background: #fafbfc; -webkit-appearance: none; appearance: none; }
     select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     select:focus, input:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.12); background: #fff; }
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1.5px solid #1a56db; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 200; display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .autocomplete-list.visible { display: block; }
+    .autocomplete-item { padding: 13px 14px; font-size: 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; color: #333; }
+    .autocomplete-item:last-child { border-bottom: none; border-radius: 0 0 10px 10px; }
+    .autocomplete-item:active, .autocomplete-item.hover { background: #e8f0fe; color: #1a56db; font-weight: 600; }
     .vto-section { border: 2px solid #eee; border-radius: 12px; padding: 16px 18px; margin-bottom: 20px; transition: border 0.2s, background 0.2s; }
     .vto-section.active { border-color: #e53935; background: #fff8f8; }
     .vto-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -138,8 +144,10 @@
       <div class="date-badge" id="formDateBadge"></div>
       <div class="form-group">
         <label>Associate Login ID <span class="required">*</span></label>
-        <input type="text" id="assocId" placeholder="例: kohenak" autocomplete="on" autocapitalize="none" list="assocList" />
-        <datalist id="assocList"></datalist>
+        <div class="autocomplete-wrap">
+          <input type="text" id="assocId" placeholder="例: kohenak" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" />
+          <div class="autocomplete-list" id="acList"></div>
+        </div>
       </div>
       <div class="form-group">
         <label>Work Group <span class="required">*</span></label>
@@ -225,6 +233,7 @@
     const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
     const ADMIN_PASSWORD = 'DOO2';
     let adminAuthed = false, qrGenerated = false, vtoAnswer = null, allData = [];
+    let acIds = [];
 
     const today = new Date();
     const dateStr = today.toLocaleDateString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',weekday:'long'});
@@ -249,18 +258,57 @@
       } catch(e) { console.error('Save error:', e); alert('保存に失敗しました。'); }
     }
 
-    // ★ 予測変換：過去データからAssociate IDの候補を自動生成
+    // ★ カスタムオートコンプリート（スマホ対応）
     async function loadSuggestions() {
       try {
         const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_API_KEY } });
         const json = await res.json();
         const requests = json.record.requests || [];
-        const ids = [...new Set(requests.map(r => r.id).filter(Boolean))];
-        const datalist = document.getElementById('assocList');
-        datalist.innerHTML = ids.map(id => '<option value="' + id + '">').join('');
+        acIds = [...new Set(requests.map(r => r.id).filter(Boolean))].sort();
       } catch(e) {}
     }
     loadSuggestions();
+
+    const acInput = document.getElementById('assocId');
+    const acList = document.getElementById('acList');
+
+    acInput.addEventListener('input', function() {
+      const val = this.value.trim().toLowerCase();
+      acList.innerHTML = '';
+      if (!val || acIds.length === 0) { acList.classList.remove('visible'); return; }
+      const matches = acIds.filter(id => id.toLowerCase().includes(val));
+      if (matches.length === 0) { acList.classList.remove('visible'); return; }
+      matches.forEach(id => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = id;
+        item.addEventListener('touchstart', function(e) {
+          e.preventDefault();
+          acInput.value = id;
+          acList.classList.remove('visible');
+          acList.innerHTML = '';
+        });
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          acInput.value = id;
+          acList.classList.remove('visible');
+          acList.innerHTML = '';
+        });
+        acList.appendChild(item);
+      });
+      acList.classList.add('visible');
+    });
+
+    acInput.addEventListener('blur', function() {
+      setTimeout(() => { acList.classList.remove('visible'); acList.innerHTML = ''; }, 200);
+    });
+
+    document.addEventListener('touchstart', function(e) {
+      if (!e.target.closest('.autocomplete-wrap')) {
+        acList.classList.remove('visible');
+        acList.innerHTML = '';
+      }
+    });
 
     function showPage(name, e) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -346,6 +394,8 @@
       await loadData();
       allData.push({ id, wg, ot, vto: vtoOn, vtoAnswer: vtoVal, ts });
       await saveData();
+      // 新しいIDをacIdsに追加
+      if (!acIds.includes(id)) { acIds.push(id); acIds.sort(); }
       btn.textContent = 'Submit'; btn.disabled = false;
       document.getElementById('successMsg').classList.add('visible');
       document.getElementById('assocId').value = '';
