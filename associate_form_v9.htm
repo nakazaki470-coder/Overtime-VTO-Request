@@ -102,7 +102,7 @@
     .empty-state { text-align: center; padding: 40px 20px; color: #bbb; font-size: 14px; }
     .empty-icon { font-size: 36px; margin-bottom: 10px; }
     .timestamp { font-size: 11px; color: #aaa; white-space: nowrap; }
-    .btn-del { padding: 4px 8px; background: transparent; border: 1px solid #e0e0e0; color: #bb; border-radius: 5px; font-size: 11px; cursor: pointer; }
+    .btn-del { padding: 4px 8px; background: transparent; border: 1px solid #e0e0e0; color: #bbb; border-radius: 5px; font-size: 11px; cursor: pointer; }
     @media (max-width: 480px) { .card, .qr-card { border-radius: 12px; padding: 20px 16px; } .summary-card { min-width: 100px; } }
   </style>
 </head>
@@ -138,7 +138,8 @@
       <div class="date-badge" id="formDateBadge"></div>
       <div class="form-group">
         <label>Associate Login ID <span class="required">*</span></label>
-        <input type="text" id="assocId" placeholder="例: kohenak" autocomplete="off" autocapitalize="none" />
+        <input type="text" id="assocId" placeholder="例: kohenak" autocomplete="off" autocapitalize="none" list="assocList" />
+        <datalist id="assocList"></datalist>
       </div>
       <div class="form-group">
         <label>Work Group <span class="required">*</span></label>
@@ -248,6 +249,19 @@
       } catch(e) { console.error('Save error:', e); alert('保存に失敗しました。'); }
     }
 
+    // ★ 予測変換：過去データからAssociate IDの候補を自動生成
+    async function loadSuggestions() {
+      try {
+        const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_API_KEY } });
+        const json = await res.json();
+        const requests = json.record.requests || [];
+        const ids = [...new Set(requests.map(r => r.id).filter(Boolean))];
+        const datalist = document.getElementById('assocList');
+        datalist.innerHTML = ids.map(id => '<option value="' + id + '">').join('');
+      } catch(e) {}
+    }
+    loadSuggestions();
+
     function showPage(name, e) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -338,78 +352,4 @@
       document.getElementById('workGroup').value = '';
       document.getElementById('otHours').value = '';
       if (vtoOn) { document.getElementById('vtoToggle').checked = false; toggleVTO(); }
-      setTimeout(() => { document.getElementById('successMsg').classList.remove('visible'); }, 3000);
-    }
-
-    function renderAdmin() {
-      const data = allData;
-      const otCount = data.filter(r => r.ot && r.ot !== '').length;
-      const vtoCount = data.filter(r => r.vtoAnswer === 'Yes').length;
-      const otTotal = data.reduce((sum, r) => sum + (parseFloat(r.ot) || 0), 0);
-      document.getElementById('sumTotal').textContent = data.length;
-      document.getElementById('sumOT').textContent = otCount;
-      document.getElementById('sumVTO').textContent = vtoCount;
-      document.getElementById('sumOTHours').textContent = otTotal + 'h';
-      const tbody = document.getElementById('adminTableBody');
-      if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">&#128203;</div>まだ回答がありません</div></td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.map((r, i) =>
-        '<tr>' +
-        '<td style="color:#bbb;font-size:12px">' + (i + 1) + '</td>' +
-        '<td style="font-weight:600">' + escHtml(r.id) + '</td>' +
-        '<td><span class="badge-wg">' + escHtml(r.wg) + '</span></td>' +
-        '<td>' + (r.ot ? '<span class="badge-ot">' + r.ot + 'h</span>' : '<span style="color:#ccc">-</span>') + '</td>' +
-        '<td>' + (r.vto ? (r.vtoAnswer === 'Yes' ? '<span class="badge-vto-on">Yes</span>' : '<span class="badge-vto-off">No</span>') : '<span style="color:#ccc">-</span>') + '</td>' +
-        '<td class="timestamp">' + escHtml(r.ts) + '</td>' +
-        '<td><button class="btn-del" onclick="deleteRow(' + i + ')">削除</button></td>' +
-        '</tr>'
-      ).join('');
-    }
-
-    function escHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    async function deleteRow(index) {
-      if (!confirm('この回答を削除しますか？')) return;
-      await loadData();
-      allData.splice(index, 1);
-      await saveData();
-      renderAdmin();
-    }
-
-    function exportCSV() {
-      if (!allData.length) { alert('データがありません。'); return; }
-      const header = ['#', 'Associate ID', 'Work Group', 'OT Hours', 'VTO', 'VTO Answer', '送信時刻'];
-      const rows = allData.map((r, i) => [
-        i + 1,
-        r.id || '',
-        r.wg || '',
-        r.ot || '',
-        r.vto ? 'ON' : 'OFF',
-        r.vtoAnswer || '',
-        r.ts || ''
-      ]);
-      const csv = [header, ...rows].map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
-      const bom = '\uFEFF';
-      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ot_vto_' + new Date().toLocaleDateString('ja-JP').replace(/\//g, '') + '.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    async function clearAll() {
-      if (!confirm('全データを削除しますか？この操作は取り消せません。')) return;
-      allData = [];
-      await saveData();
-      renderAdmin();
-    }
-  </script>
-</body>
-</html>
+      setTimeout(() => { document.getElementById('successMsg').classList.remove('visible'); }, 3
