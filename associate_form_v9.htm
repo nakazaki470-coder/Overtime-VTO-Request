@@ -25,7 +25,7 @@
     label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 7px; }
     label span.required { color: #e53935; margin-left: 3px; }
     select, input[type="text"], input[type="password"] { width: 100%; padding: 13px 14px; border: 1.5px solid #d0d4da; border-radius: 10px; font-size: 16px; color: #333; outline: none; transition: border 0.2s, box-shadow 0.2s; background: #fafbfc; -webkit-appearance: none; appearance: none; }
-    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     select:focus, input:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.12); background: #fff; }
     .autocomplete-wrap { position: relative; }
     .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1.5px solid #1a56db; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 200; display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
@@ -41,7 +41,7 @@
     .toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .toggle-switch { position: relative; width: 52px; height: 30px; cursor: pointer; }
     .toggle-switch input { display: none; }
-    .slider { position: absolute; inset: 0; background: #cc; border-radius: 30px; transition: background 0.25s; }
+    .slider { position: absolute; inset: 0; background: #ccc; border-radius: 30px; transition: background 0.25s; }
     .slider::before { content: ''; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
     .toggle-switch input:checked + .slider { background: #e53935; }
     .toggle-switch input:checked + .slider::before { transform: translateX(22px); }
@@ -108,7 +108,7 @@
     .empty-state { text-align: center; padding: 40px 20px; color: #bbb; font-size: 14px; }
     .empty-icon { font-size: 36px; margin-bottom: 10px; }
     .timestamp { font-size: 11px; color: #aaa; white-space: nowrap; }
-    .btn-del { padding: 4px 8px; background: transparent; border: 1px solid #e0e0e0; color: #bb; border-radius: 5px; font-size: 11px; cursor: pointer; }
+    .btn-del { padding: 4px 8px; background: transparent; border: 1px solid #e0e0e0; color: #bbb; border-radius: 5px; font-size: 11px; cursor: pointer; }
     @media (max-width: 480px) { .card, .qr-card { border-radius: 12px; padding: 20px 16px; } .summary-card { min-width: 100px; } }
   </style>
 </head>
@@ -228,9 +228,13 @@
   </div>
 
   <script>
+    // ★ Bin A: 回答データ（全削除OK）
     const JSONBIN_BIN_ID = '6a035223250b1311c33d4c09';
+    // ★ Bin B: IDリスト専用（全削除しても消えない）
+    const IDLIST_BIN_ID = '6a0443d3adc21f119a930053';
     const JSONBIN_API_KEY = '$2a$10$QMc5bPIAwkQL1r2cpfEGi.3wp2lmV73OnAXaOGtZzw4fpXz9x/4TS';
     const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
+    const IDLIST_URL = 'https://api.jsonbin.io/v3/b/' + IDLIST_BIN_ID;
     const ADMIN_PASSWORD = 'DOO2';
     let adminAuthed = false, qrGenerated = false, vtoAnswer = null, allData = [];
     let acIds = [];
@@ -258,22 +262,33 @@
       } catch(e) { console.error('Save error:', e); alert('保存に失敗しました。'); }
     }
 
-    // ★ カスタムオートコンプリート（スマホ対応 + 不正IDフィルタリング）
+    // ★ IDリスト専用Binから候補を取得
     async function loadSuggestions() {
       try {
-        const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_API_KEY } });
+        const res = await fetch(IDLIST_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_API_KEY } });
         const json = await res.json();
-        const requests = json.record.requests || [];
-        acIds = [...new Set(
-          requests.map(r => r.id)
-            .filter(Boolean)
-            .map(id => id.trim())
-            .filter(id => /^[a-zA-Z0-9._-]+$/.test(id))
-        )].sort();
+        acIds = (json.record.ids || []).filter(id => /^[a-zA-Z0-9._-]+$/.test(id)).sort();
       } catch(e) {}
     }
+
+    // ★ IDリスト専用Binに新IDを追加
+    async function addIdToList(newId) {
+      if (!newId || !(/^[a-zA-Z0-9._-]+$/.test(newId))) return;
+      if (acIds.includes(newId)) return;
+      acIds.push(newId);
+      acIds.sort();
+      try {
+        await fetch(IDLIST_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
+          body: JSON.stringify({ ids: acIds })
+        });
+      } catch(e) {}
+    }
+
     loadSuggestions();
 
+    // カスタムオートコンプリート（スマホ対応）
     const acInput = document.getElementById('assocId');
     const acList = document.getElementById('acList');
 
@@ -330,149 +345,4 @@
       if (qrGenerated) return;
       const url = location.href;
       document.getElementById('qrUrlText').textContent = url;
-      new QRCode(document.getElementById('qrcode'), { text: url, width: 200, height: 200, colorDark: '#232f3e', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
-      qrGenerated = true;
-    }
-
-    function openModal() {
-      document.getElementById('pwInput').value = '';
-      document.getElementById('pwError').textContent = '';
-      document.getElementById('pwModal').classList.add('visible');
-      setTimeout(() => document.getElementById('pwInput').focus(), 100);
-    }
-    function closeModal() { document.getElementById('pwModal').classList.remove('visible'); }
-    function togglePWVisible() { const inp = document.getElementById('pwInput'); inp.type = inp.type === 'password' ? 'text' : 'password'; }
-
-    function checkPW() {
-      const val = document.getElementById('pwInput').value;
-      if (val === ADMIN_PASSWORD) {
-        adminAuthed = true;
-        document.getElementById('navLock').innerHTML = '&#128275;';
-        closeModal();
-        showPage('admin', null);
-      } else {
-        document.getElementById('pwError').textContent = 'パスワードが違います。';
-        const btn = document.getElementById('pwOkBtn');
-        btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-        document.getElementById('pwInput').value = '';
-        document.getElementById('pwInput').focus();
-      }
-    }
-
-    function adminLogout() {
-      adminAuthed = false;
-      document.getElementById('navLock').innerHTML = '&#128274;';
-      showPage('form', null);
-    }
-
-    function toggleVTO() {
-      const cb = document.getElementById('vtoToggle');
-      const sec = document.getElementById('vtoSection');
-      const status = document.getElementById('toggleStatus');
-      const timeRow = document.getElementById('vtoTimeRow');
-      if (cb.checked) {
-        sec.classList.add('active'); status.textContent = 'ON'; status.classList.add('on'); timeRow.classList.add('visible');
-      } else {
-        sec.classList.remove('active'); status.textContent = 'OFF'; status.classList.remove('on'); timeRow.classList.remove('visible');
-        vtoAnswer = null;
-        document.getElementById('vtoYes').className = 'yn-btn';
-        document.getElementById('vtoNo').className = 'yn-btn';
-      }
-    }
-
-    function setVtoAnswer(val) {
-      vtoAnswer = val;
-      document.getElementById('vtoYes').className = val === true ? 'yn-btn selected-yes' : 'yn-btn';
-      document.getElementById('vtoNo').className = val === false ? 'yn-btn selected-no' : 'yn-btn';
-    }
-
-    async function submitForm() {
-      const id = document.getElementById('assocId').value.trim();
-      const wg = document.getElementById('workGroup').value;
-      if (!id || !wg) { alert('Associate ID と Work Group を入力してください。'); return; }
-      const ot = document.getElementById('otHours').value;
-      const vtoOn = document.getElementById('vtoToggle').checked;
-      const vtoVal = vtoOn ? (vtoAnswer === true ? 'Yes' : vtoAnswer === false ? 'No' : '') : '';
-      const ts = new Date().toLocaleString('ja-JP');
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true; btn.textContent = '送信中...';
-      await loadData();
-      allData.push({ id, wg, ot, vto: vtoOn, vtoAnswer: vtoVal, ts });
-      await saveData();
-      if (!acIds.includes(id) && /^[a-zA-Z0-9._-]+$/.test(id)) { acIds.push(id); acIds.sort(); }
-      btn.textContent = 'Submit'; btn.disabled = false;
-      document.getElementById('successMsg').classList.add('visible');
-      document.getElementById('assocId').value = '';
-      document.getElementById('workGroup').value = '';
-      document.getElementById('otHours').value = '';
-      if (vtoOn) { document.getElementById('vtoToggle').checked = false; toggleVTO(); }
-      setTimeout(() => { document.getElementById('successMsg').classList.remove('visible'); }, 3000);
-    }
-
-    function renderAdmin() {
-      const data = allData;
-      const otCount = data.filter(r => r.ot && r.ot !== '').length;
-      const vtoCount = data.filter(r => r.vtoAnswer === 'Yes').length;
-      const otTotal = data.reduce((sum, r) => sum + (parseFloat(r.ot) || 0), 0);
-      document.getElementById('sumTotal').textContent = data.length;
-      document.getElementById('sumOT').textContent = otCount;
-      document.getElementById('sumVTO').textContent = vtoCount;
-      document.getElementById('sumOTHours').textContent = otTotal + 'h';
-      const tbody = document.getElementById('adminTableBody');
-      if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">&#128203;</div>まだ回答がありません</div></td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.map((r, i) =>
-        '<tr>' +
-        '<td style="color:#bb;font-size:12px">' + (i + 1) + '</td>' +
-        '<td style="font-weight:600">' + escHtml(r.id) + '</td>' +
-        '<td><span class="badge-wg">' + escHtml(r.wg) + '</span></td>' +
-        '<td>' + (r.ot ? '<span class="badge-ot">' + r.ot + 'h</span>' : '<span style="color:#ccc">-</span>') + '</td>' +
-        '<td>' + (r.vto ? (r.vtoAnswer === 'Yes' ? '<span class="badge-vto-on">Yes</span>' : '<span class="badge-vto-off">No</span>') : '<span style="color:#ccc">-</span>') + '</td>' +
-        '<td class="timestamp">' + escHtml(r.ts) + '</td>' +
-        '<td><button class="btn-del" onclick="deleteRow(' + i + ')">削除</button></td>' +
-        '</tr>'
-      ).join('');
-    }
-
-    function escHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-
-    async function deleteRow(index) {
-      if (!confirm('この回答を削除しますか？')) return;
-      await loadData();
-      allData.splice(index, 1);
-      await saveData();
-      renderAdmin();
-    }
-
-    function exportCSV() {
-      if (!allData.length) { alert('データがありません。'); return; }
-      const header = ['#', 'Associate ID', 'Work Group', 'OT Hours', 'VTO', 'VTO Answer', '送信時刻'];
-      const rows = allData.map((r, i) => [
-        i + 1, r.id || '', r.wg || '', r.ot || '',
-        r.vto ? 'ON' : 'OFF', r.vtoAnswer || '', r.ts || ''
-      ]);
-      const csv = [header, ...rows].map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
-      const bom = '\uFEFF';
-      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ot_vto_' + new Date().toLocaleDateString('ja-JP').replace(/\//g, '') + '.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    async function clearAll() {
-      if (!confirm('全データを削除しますか？この操作は取り消せません。')) return;
-      allData = [];
-      await saveData();
-      renderAdmin();
-    }
-  </script>
-</body>
-</html>
+      new QRCode(document
