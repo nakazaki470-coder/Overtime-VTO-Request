@@ -41,7 +41,7 @@
     .toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .toggle-switch { position: relative; width: 52px; height: 30px; cursor: pointer; }
     .toggle-switch input { display: none; }
-    .slider { position: absolute; inset: 0; background: #cc; border-radius: 30px; transition: background 0.25s; }
+    .slider { position: absolute; inset: 0; background: #ccc; border-radius: 30px; transition: background 0.25s; }
     .slider::before { content: ''; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
     .toggle-switch input:checked + .slider { background: #e53935; }
     .toggle-switch input:checked + .slider::before { transform: translateX(22px); }
@@ -120,6 +120,7 @@
       <button class="nav-tab" id="tab-qr" onclick="showPage('qr',event)">QR</button>
       <button class="nav-tab" id="tab-admin" onclick="handleAdminTab(event)">管理者 <span class="nav-lock" id="navLock">&#128274;</span></button>
     </div>
+  </div>
   <div class="modal-overlay" id="pwModal">
     <div class="modal">
       <div class="modal-icon">&#128274;</div>
