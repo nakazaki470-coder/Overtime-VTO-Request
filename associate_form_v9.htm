@@ -25,7 +25,7 @@
     label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 7px; }
     label span.required { color: #e53935; margin-left: 3px; }
     select, input[type="text"], input[type="password"] { width: 100%; padding: 13px 14px; border: 1.5px solid #d0d4da; border-radius: 10px; font-size: 16px; color: #333; outline: none; transition: border 0.2s, box-shadow 0.2s; background: #fafbfc; -webkit-appearance: none; appearance: none; }
-    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     select:focus, input:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.12); background: #fff; }
     .autocomplete-wrap { position: relative; }
     .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1.5px solid #1a56db; border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 200; display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
@@ -41,7 +41,7 @@
     .toggle-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .toggle-switch { position: relative; width: 52px; height: 30px; cursor: pointer; }
     .toggle-switch input { display: none; }
-    .slider { position: absolute; inset: 0; background: #ccc; border-radius: 30px; transition: background 0.25s; }
+    .slider { position: absolute; inset: 0; background: #cc; border-radius: 30px; transition: background 0.25s; }
     .slider::before { content: ''; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
     .toggle-switch input:checked + .slider { background: #e53935; }
     .toggle-switch input:checked + .slider::before { transform: translateX(22px); }
@@ -258,13 +258,18 @@
       } catch(e) { console.error('Save error:', e); alert('保存に失敗しました。'); }
     }
 
-    // ★ カスタムオートコンプリート（スマホ対応）
+    // ★ カスタムオートコンプリート（スマホ対応 + 不正IDフィルタリング）
     async function loadSuggestions() {
       try {
         const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_API_KEY } });
         const json = await res.json();
         const requests = json.record.requests || [];
-        acIds = [...new Set(requests.map(r => r.id).filter(Boolean))].sort();
+        acIds = [...new Set(
+          requests.map(r => r.id)
+            .filter(Boolean)
+            .map(id => id.trim())
+            .filter(id => /^[a-zA-Z0-9._-]+$/.test(id))
+        )].sort();
       } catch(e) {}
     }
     loadSuggestions();
@@ -394,8 +399,7 @@
       await loadData();
       allData.push({ id, wg, ot, vto: vtoOn, vtoAnswer: vtoVal, ts });
       await saveData();
-      // 新しいIDをacIdsに追加
-      if (!acIds.includes(id)) { acIds.push(id); acIds.sort(); }
+      if (!acIds.includes(id) && /^[a-zA-Z0-9._-]+$/.test(id)) { acIds.push(id); acIds.sort(); }
       btn.textContent = 'Submit'; btn.disabled = false;
       document.getElementById('successMsg').classList.add('visible');
       document.getElementById('assocId').value = '';
